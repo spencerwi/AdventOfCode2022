@@ -14,16 +14,21 @@
         | Opponent
         | Tie
 
+    let loser_to = function
+        | Rock -> Scissors
+        | Paper -> Rock
+        | Scissors -> Paper
+
+    let winner_over = function 
+        | Rock -> Paper
+        | Paper -> Scissors
+        | Scissors -> Rock
+
     let winner round =
-        if round.you = round.opponent then Tie
-        else
-            match (round.opponent, round.you) with
-            | (Scissors, Rock) -> You
-            | (Scissors, Paper) -> Opponent
-            | (Rock, Paper) -> You
-            | (Rock, Scissors) -> Opponent
-            | (Paper, Scissors) -> You
-            | (Paper, Rock) -> Opponent
+        match (round.you, round.opponent) with
+        | you, opponent when you = opponent -> Tie
+        | you, opponent when you = (loser_to opponent) -> Opponent
+        | _, _ -> You
 
     let score round =
         let shape_score = 
@@ -57,16 +62,8 @@
         let you =
             match input.[2] with
             | 'Y' -> opponent // Tie on purpose by playing the same thing
-            | 'X' -> // time to lose
-                match opponent with
-                | Rock -> Scissors
-                | Paper -> Rock
-                | Scissors -> Paper
-            | 'Z'  -> // time to win
-                match opponent with
-                | Rock -> Paper
-                | Paper -> Scissors
-                | Scissors -> Rock
+            | 'X' -> loser_to opponent            
+            | 'Z'  -> winner_over opponent
             | other -> failwith ("Unrecognized instruction for you: " + (string other))
         in 
         { opponent = opponent; you = you }
