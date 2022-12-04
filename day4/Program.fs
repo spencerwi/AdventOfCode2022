@@ -10,6 +10,13 @@ let parse_assignment (assignment_str : string) : Assignment =
         endInclusive = (int parts.[1])
     }
 
+let parse_elfpair (line : string) =
+    let elfPair = 
+        line.Split [|','|] 
+        |> Array.map parse_assignment
+    in
+    (elfPair.[0], elfPair.[1])
+
 let fully_contains a1 a2 =
     (
         a1.start <= a2.start 
@@ -26,13 +33,6 @@ let overlaps a1 a2 =
         //  |--- a2 ---|
         (a2.start <= a1.start && a2.endInclusive >= a1.start)
     )
-
-let parse_elfpair (line : string) =
-    let elfPair = 
-        line.Split [|','|] 
-        |> Array.map parse_assignment
-    in
-    (elfPair.[0], elfPair.[1])
 
 let part1 (input : seq<Assignment * Assignment>) =
     query {
