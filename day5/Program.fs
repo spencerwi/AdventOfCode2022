@@ -27,7 +27,7 @@ module Stacks = begin
     /// </description>
     let move_retaining_order (stacks : t) (movement : Movement) =
         // To retain order rather than reversing the elements we want, we'll use a temporary "playback"
-        //  internmediate stack variable.
+        //  intermediate stack variable.
         let mutable unreverser = new Stack<char>() in
         for i in 1..movement.count do
             unreverser.Push(
