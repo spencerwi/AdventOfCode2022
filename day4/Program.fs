@@ -25,12 +25,21 @@ let fully_contains a1 a2 =
 
 let overlaps a1 a2 =
     (
+        // "a1-leading" cases:
         //  |--- a1 ---|
         //        |--- a2 ---|
+        // or 
+        //  |--- a1 ---------|
+        //    |--- a2 ---|
+        // or
+        //  |--- a1 ---|
+        //  |--- a2 ---|
+        // or 
+        //  |--- a1 ---|
+        //  |----- a2 ------|
         (a1.start <= a2.start && a1.endInclusive >= a2.start) 
         || 
-        //        |--- a1 ---|
-        //  |--- a2 ---|
+        // "a2-leading" cases, which are the same but flipped a1/a2
         (a2.start <= a1.start && a2.endInclusive >= a1.start)
     )
 
