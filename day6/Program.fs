@@ -2,10 +2,10 @@
     input
     |> Seq.windowed marker_length
     |> Seq.indexed
-    |> Seq.map (fun (idx, substring) -> 
-        (idx + marker_length, Set.ofArray substring)
+    |> Seq.map (fun (startIndex, substring) -> 
+        (startIndex + marker_length, Set.ofArray substring)
     )
-    |> Seq.find (fun (idx, unique_letters) -> 
+    |> Seq.find (fun (endPosition, unique_letters) -> 
         unique_letters.Count = marker_length
     )
     |> fst
