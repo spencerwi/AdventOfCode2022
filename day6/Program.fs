@@ -1,14 +1,14 @@
 ﻿let find_marker (marker_length: int) (input : string) = 
-    let first_possible_index = marker_length - 1 in
-    let possible_indexes = seq { first_possible_index .. (input.Length - 1) } in
-    let zero_offset_answer = 
-        possible_indexes
-        |> Seq.find (fun idx ->
-            let substring = input.[(idx - first_possible_index)..idx] in
-            let unique_letters = Set.ofSeq substring in
-            unique_letters.Count = marker_length 
-        )
-    in zero_offset_answer + 1
+    input
+    |> Seq.windowed marker_length
+    |> Seq.indexed
+    |> Seq.map (fun (idx, substring) -> 
+        (idx + marker_length, Set.ofArray substring)
+    )
+    |> Seq.find (fun (idx, unique_letters) -> 
+        unique_letters.Count = marker_length
+    )
+    |> fst
 
 let part1 (input : string) =
     find_marker 4 input
