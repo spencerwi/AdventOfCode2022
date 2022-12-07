@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "spencerwi",
+  "classifications": [ "Common", "Console" ],
+  "identity": "spencerwi.AdventOfCodeFsharp",
+  "name": "spencerwi's F# advent of code template",
+  "shortName": "advent_of_code_fs",
+  "tags": {
+    "language": "F#",
+    "type": "project"
+  }
+}
