@@ -1,19 +1,5 @@
 ﻿open System
 
-/// <description>
-/// This differs from the one used on day1 because this _includes_ the line where we split
-///  as the first entry in each group
-/// </dscription>
-let split_seq_when (test: 'a -> bool) (inputs: 'a seq) : 'a seq seq =
-    seq {
-        let mutable current_seq = Seq.empty in
-        for current_value in inputs do
-            current_seq <- Seq.append current_seq ( seq { current_value })
-            if (test current_value) then
-                yield current_seq;
-                current_seq <- Seq.empty
-    }
-
 module Filesystem = begin
     type Node = 
         | Dir_node of Directory 
@@ -21,9 +7,9 @@ module Filesystem = begin
     and Directory = {
         parent: Directory option
         name : string
-        mutable subdirs : List<Directory>
-        mutable files : List<File>
-        mutable size : uint64
+        mutable subdirs : Directory list
+        mutable files : File list
+        mutable total_size : uint64
     }
     and File = {
         parent: Directory
@@ -36,6 +22,7 @@ module Filesystem = begin
         currentDir : Directory
     }
 
+    // This accepts unit so that we can ensure we're handing a new instance each time
     let mk_initial_state () =
         let root =
             {
@@ -43,7 +30,7 @@ module Filesystem = begin
                 name = "/"
                 subdirs = List.empty
                 files = List.empty
-                size = 0UL
+                total_size = 0UL
             }
         in
         {
@@ -59,7 +46,7 @@ module Filesystem = begin
                 name = name.Trim()
                 subdirs = List.empty
                 files = List.empty
-                size = 0UL
+                total_size = 0UL
             }
         else
             let size_and_name = entry.Split [|' '|] in
@@ -72,6 +59,15 @@ module Filesystem = begin
             } in
             File_node file
 
+    let get_dir (current : Directory) (subdir_name : string) : Directory =
+        let maybe_subdir = 
+            current.subdirs
+            |> Seq.tryFind (fun subdir -> subdir.name = subdir_name)
+        in
+        match maybe_subdir with
+        | Some d -> d
+        | None -> failwith ("Directory not found: " + subdir_name + " in " + current.name)
+
     module Commands = begin
         type t =
             | CD of string
@@ -80,51 +76,40 @@ module Filesystem = begin
         let parse_command (input_lines : string seq) : t =
             match (Seq.head input_lines).[0..1] with
             | "ls" -> 
-                let listings = 
-                    input_lines
-                    |> Seq.skip 1
-                in
+                let listings = Seq.tail input_lines in
                 LS listings
             | "cd" -> 
                 let subdir = (Seq.head input_lines).Substring(2).Trim() in
                 CD subdir
             | other -> failwith ("Unrecognized command: " + other)
 
-
-        let get_dir (current : Directory) (subdir_name : string) : Directory =
-            let maybe_subdir = 
-                current.subdirs
-                |> Seq.tryFind (fun subdir -> subdir.name = subdir_name)
-            in
-            match maybe_subdir with
-            | Some d -> d
-            | None -> failwith ("Directory not found: " + subdir_name + " in " + current.name)
-
         let cd (state : State) (path : string) : State =
-            match path with 
-            | "/" -> { state with currentDir = state.root }
-            | ".." when state.currentDir.parent.IsNone -> state
-            | ".." when state.currentDir.parent.IsSome ->  { state with currentDir = state.currentDir.parent.Value }
-            | dirname -> 
+            match (path, state.currentDir.parent) with 
+            | ("/", _) -> { state with currentDir = state.root }
+            | ("..", None) -> state // shouldn't happen, but worth handling so the compiler doesn't yell at me about exhaustiveness
+            | ("..", Some parent) ->  { state with currentDir = parent }
+            | (dirname, _) -> 
                 { state with currentDir = (get_dir state.currentDir dirname) }
 
         let ls (state : State) (listings : string seq) : State =
             if (not state.currentDir.subdirs.IsEmpty || not state.currentDir.files.IsEmpty) then
-                // if this already has children, we've already listed this directory. Don't duplicate.
+                // if this already has children, we've already listed this directory. Don't duplicate entries.
                 state
             else
                 for listing in listings do
                     let parsed_child = parse_entry state.currentDir listing in
                     match parsed_child with 
-                    | Dir_node d -> 
-                        state.currentDir.subdirs <- List.append state.currentDir.subdirs [d]
                     | File_node f ->
+                        // add this file to the parent directory
                         state.currentDir.files <- List.append state.currentDir.files [f]
-                        state.currentDir.size <- state.currentDir.size + f.size
-                        let mutable ancestor = state.currentDir.parent in
+                        // update the "total size" numbers all the way up the tree to the root so we don't have to calculate it later
+                        let mutable ancestor = Some state.currentDir in
                         while (ancestor.IsSome) do
-                            ancestor.Value.size <- ancestor.Value.size + f.size
+                            ancestor.Value.total_size <- ancestor.Value.total_size + f.size
                             ancestor <- ancestor.Value.parent
+                    | Dir_node d -> 
+                        // add this subdirectory to its parent. It's empty when it's created, so we don't need to do any total_size updates.
+                        state.currentDir.subdirs <- List.append state.currentDir.subdirs [d]
                 state
 
         let eval (state : State) (command : t) : State =
@@ -133,6 +118,9 @@ module Filesystem = begin
             | CD subdir -> cd state subdir
     end
 
+    /// <description>
+    /// Just a convenience method for debugging
+    /// </description>
     let rec to_string (indent_level: int) (tree : Node) : string =
         let prefix = (String.replicate indent_level " ") + "- " in
         match tree with
@@ -153,7 +141,7 @@ module Filesystem = begin
             in
             let non_empty_lines = 
                 Seq.filter (not << String.IsNullOrWhiteSpace) [
-                    prefix + d.name + " (" + d.size.ToString() + ")";
+                    prefix + d.name + " (" + d.total_size.ToString() + ")";
                     files_str;
                     subdirs_str;
                 ] 
@@ -162,11 +150,11 @@ module Filesystem = begin
 end
 
 let part1 (root : Filesystem.Directory) : uint64 =
+    // depth-first traversal, updating a mutable list as we go
     let mutable small_folder_sizes = [] in
-    // DFS yo
     let rec check_dir_size (dir : Filesystem.Directory) =
-        if dir.size <= 100_000UL then
-            small_folder_sizes <- List.append small_folder_sizes [dir.size] 
+        if dir.total_size <= 100_000UL then
+            small_folder_sizes <- List.append small_folder_sizes [dir.total_size] 
         for subdir in dir.subdirs do
             check_dir_size subdir
     in check_dir_size root;
@@ -175,16 +163,16 @@ let part1 (root : Filesystem.Directory) : uint64 =
 let part2 (root : Filesystem.Directory) : uint64 =
     let total_space = 70_000_000UL in
     let update_needed_available_space = 30_000_000UL in
-    let current_available_space = total_space - root.size in
+    let current_available_space = total_space - root.total_size in
     let space_needed_to_free = update_needed_available_space - current_available_space in
-    // DFS yo
+    // depth-first traversal, updating a mutable "result" pointer as we go
     let mutable candidate_size = None in
     let rec check_dir (d : Filesystem.Directory) =
-        if (d.size >= space_needed_to_free) then
+        if (d.total_size >= space_needed_to_free) then
             candidate_size <- 
                 match candidate_size with
-                | None -> Some d.size
-                | Some existing when d.size < existing -> Some d.size
+                | None -> Some d.total_size
+                | Some existing when d.total_size < existing -> Some d.total_size
                 | _ -> candidate_size
         for subdir in d.subdirs do
             check_dir subdir
@@ -201,10 +189,10 @@ let main args =
     in
     let raw_lines = System.IO.File.ReadAllText input_filename in
     let commands = 
-        raw_lines.Split [| '$' |]
+        raw_lines.Split [| '$' |] // split the whole-file input into command-and-ouput groups
         |> Seq.map (fun s -> s.Trim())
-        |> Seq.filter (not << String.IsNullOrWhiteSpace)
-        |> Seq.map (fun s -> s.Split [| '\n' |])
+        |> Seq.filter (not << String.IsNullOrWhiteSpace) // eliminate any empty lines, for convenience
+        |> Seq.map (fun s -> s.Split [| '\n' |]) // then split within each group into lines, mostly useful for ls
         |> Seq.map Filesystem.Commands.parse_command
     in
     let initial_state = Filesystem.mk_initial_state() in
