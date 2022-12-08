@@ -8,5 +8,7 @@
   "tags": {
     "language": "F#",
     "type": "project"
-  }
+  },
+  "sourceName": "project_template",
+  "preferNameDirectory": true
 }
