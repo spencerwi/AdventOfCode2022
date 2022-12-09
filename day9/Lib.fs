@@ -40,14 +40,24 @@ module RopeMovement = begin
         | "R" -> right steps
         | _ -> failwith ("Unrecognized instruction: " + input)
 
-    type State = {
+    type RopeSegmentState = {
+        position : Position
+        history : Set<Position>
+    }
+
+    type ShortRopeState = {
         head : Position
         head_history : Set<Position>
         tail : Position
         tail_history : Set<Position>
     }
 
-    let initial_state = {
+    // TODO: migrate everything to use this, and have `move` walk backwards down the rope, then remove the short-rope equivalents 
+    type LongRopeState = {
+        segments : RopeSegmentState array
+    }
+
+    let initial_short_rope_state = {
         head = origin
         head_history = Set.add origin Set.empty
         tail = origin
@@ -75,7 +85,7 @@ module RopeMovement = begin
         Seq.contains distance neighbor_distances
 
 
-    let rec move (state : State) (movement : Movement) : State =
+    let rec move (state : ShortRopeState) (movement : Movement) : ShortRopeState =
         if movement.count = 0 then
             state
         else
@@ -130,7 +140,7 @@ module Puzzle = begin
         let movements = Seq.map RopeMovement.parse input in
         let final_state = 
             movements
-            |> Seq.fold RopeMovement.move RopeMovement.initial_state
+            |> Seq.fold RopeMovement.move RopeMovement.initial_short_rope_state
         in
         final_state.tail_history.Count
 

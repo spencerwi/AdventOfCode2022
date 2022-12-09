@@ -54,7 +54,7 @@ type ``RopeMovement module``()=
             // R 2
             ({ x = 2; y = 2 }, {x = 1; y = 2})
         |]
-        let mutable state = initial_state in
+        let mutable state = initial_short_rope_state in
         let mutable i = 0 in
         for movement in movements do
             printfn "Moving %A" movement;
