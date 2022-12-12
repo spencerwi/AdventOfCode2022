@@ -54,12 +54,12 @@ type ``RopeMovement module``()=
             // R 2
             ({ x = 2; y = 2 }, {x = 1; y = 2})
         |]
-        let mutable state = initial_short_rope_state in
+        let mutable state = initial_rope_state 2 in
         let mutable i = 0 in
         for movement in movements do
             printfn "Moving %A" movement;
             state <- move state movement
-            let current_position = (state.head, state.tail) in
+            let current_position = (state.segments.[0].position, state.segments.[1].position) in
             current_position |> should equal (expected_positions.[i]);
             i <- i + 1
 
@@ -74,4 +74,17 @@ type ``Tests for solution`` ()=
     [<Test>]
     member this.``It should solve part 2`` ()=
         Puzzle.part2 sample_input
-        |> should equal "the right answer"
+        |> should equal 1
+
+        let longer_sample_input = [|
+            "R 5";
+            "U 8";
+            "L 8";
+            "D 3";
+            "R 17";
+            "D 10";
+            "L 25";
+            "U 20"
+        |] in
+        Puzzle.part2 longer_sample_input
+        |> should equal 36
