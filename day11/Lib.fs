@@ -136,21 +136,34 @@ module Monkeys = begin
 end
 
 module Puzzle = begin
-    let run (worry_modifier : int -> int) (round_count : int) (input : string seq) : uint64 =
-        let mutable monkeys = 
+    let run (worry_modifier : int -> int) (round_count : int) (monkeys : Monkeys.t array) : uint64 =
+        let mutable state = monkeys in
+        for round = 1 to round_count do
+            state <- Monkeys.step (fun x -> x / 3) state
+        done;
+        Monkeys.monkey_business_level state
+
+    let part1 (input: string seq) =
+        let monkeys = 
             input
             |> split_sequence_on ""
             |> Array.ofSeq
             |> Array.map Monkeys.parse
-        for round = 1 to round_count do
-            monkeys <- Monkeys.step (fun x -> x / 3) monkeys
-        done;
-        Monkeys.monkey_business_level monkeys
-
-    let part1 (input: string seq) =
-        run (fun x -> x / 3) 20 input
+        in
+        run (fun x -> x / 3) 20 monkeys
 
     let part2 (input: string seq) =
-        let some_stupid_obscure_math_trick = (fun x -> x) // TODO in
-        run some_stupid_obscure_math_trick 10_000 input
+        let monkeys = 
+            input
+            |> split_sequence_on ""
+            |> Array.ofSeq
+            |> Array.map Monkeys.parse
+        in
+        let stupid_modulo =
+            monkeys
+            |> Array.map (fun m -> m.divisibility_test)
+            |> Seq.reduce (*)
+        in
+        let some_stupid_obscure_math_trick = (fun x -> x % stupid_modulo) in
+        run some_stupid_obscure_math_trick 10_000 monkeys
 end
