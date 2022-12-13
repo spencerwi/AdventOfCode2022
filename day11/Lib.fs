@@ -101,7 +101,7 @@ module Monkeys = begin
             inspection_count = 0UL
         }
 
-    let step (do_division : bool) (monkeys : t array) : t array =
+    let step (worry_modifier : int -> int) (monkeys : t array) : t array =
         let new_monkeys = Array.copy monkeys in
         let take_turn monkey_number =
             let monkey = new_monkeys.[monkey_number] in
@@ -113,12 +113,7 @@ module Monkeys = begin
                     item
                     |> (Operation.eval monkey.operation)
                 in
-                let final_worry_level = 
-                    if do_division then
-                        operation_result / 3
-                    else
-                        operation_result
-                in
+                let final_worry_level = worry_modifier operation_result in
                 let target = 
                     if final_worry_level % (monkey.divisibility_test) = 0 then
                         monkey.true_target
@@ -141,20 +136,21 @@ module Monkeys = begin
 end
 
 module Puzzle = begin
-    let run (do_division : bool) (round_count : int) (input : string seq) : uint64 =
+    let run (worry_modifier : int -> int) (round_count : int) (input : string seq) : uint64 =
         let mutable monkeys = 
             input
             |> split_sequence_on ""
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         for round = 1 to round_count do
-            monkeys <- Monkeys.step do_division monkeys
+            monkeys <- Monkeys.step (fun x -> x / 3) monkeys
         done;
         Monkeys.monkey_business_level monkeys
 
     let part1 (input: string seq) =
-        run true 20 input
+        run (fun x -> x / 3) 20 input
 
     let part2 (input: string seq) =
-        run false 10_000 input
+        let some_stupid_obscure_math_trick = (fun x -> x) // TODO in
+        run some_stupid_obscure_math_trick 10_000 input
 end

@@ -53,14 +53,14 @@ type ``Tests for Monkeys module`` ()=
         }
 
     [<Test>]
-    member this.``It plays a round with division correctly`` ()=
+    member this.``It plays a round with division-by-3 correctly`` ()=
         let monkeys = 
             sample_input
             |> Lib.split_sequence_on ""
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         in
-        Monkeys.step true monkeys
+        Monkeys.step (fun x -> x / 3) monkeys
         |> Array.map (fun monkey -> monkey.items.ToArray())
         |> should equal [|
             [| 20; 23; 27; 26 |];
@@ -68,24 +68,6 @@ type ``Tests for Monkeys module`` ()=
             Array.empty;
             Array.empty
         |]
-
-        // TODO
-//    [<Test>]
-//    member this.``It plays a round without division correctly`` ()=
-//        let monkeys = 
-//            sample_input
-//            |> Lib.split_sequence_on ""
-//            |> Array.ofSeq
-//            |> Array.map Monkeys.parse
-//        in
-//        Monkeys.step true monkeys
-//        |> Array.map (fun monkey -> monkey.items.ToArray())
-//        |> should equal [|
-//            [| 20; 23; 27; 26 |];
-//            [| 2080; 25; 167; 207; 401; 1046 |];
-//            Array.empty;
-//            Array.empty
-//        |]
 
 [<TestFixture>]
 type ``Tests for solution`` ()=
