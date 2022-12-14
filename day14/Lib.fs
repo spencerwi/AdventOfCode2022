@@ -2,7 +2,7 @@ module Lib
 
 open System
 
-// A global debug switch that I can turn on and off
+// A global debug switch that I can turn on and off quickly
 let debug = false
 //let debug = true
 
@@ -85,6 +85,8 @@ module Cave = begin
                 start = start
                 stop = stop
             })
+        member this.ends =
+            seq { this.start; this.stop }
 
     type t = {
         mutable cells: Map<Coords, Cell>
@@ -116,10 +118,14 @@ module Cave = begin
                 Abyss
             else
                 Air
+        member this.Item 
+            with get (coords : Coords) = this.get coords
+            and set (coords: Coords) (value : Cell) =
+                this.cells <- this.cells.Add(coords, value)
 
         member this.get_with_floor (coords : Coords) =
             match this.floor_depth with
-            | None -> this.get coords
+            | None -> this[coords]
             | Some depth ->
                 if coords.row >= depth then
                     Rock
@@ -136,7 +142,7 @@ module Cave = begin
             for row = start.row to stop.row do
                 for col = start.col to stop.col do
                     let point = {row = row; col = col} in
-                    this.cells <- this.cells.Add(point, Rock)
+                    this[point] <- Rock
 
         member this.to_string : string =
             let (left_edge, right_edge) = this.edges in
@@ -149,24 +155,24 @@ module Cave = begin
                         }
             }
 
-    let empty (floor_depth : int option) = 
-        { 
-            cells = Map.empty
-            floor_depth = floor_depth
-        }
-
-    let build (lines : Line seq) =
+    let build (with_floor : bool) (lines : Line seq) =
         let all_line_ends =
             lines
-            |> Seq.collect (fun line ->
-                seq { line.start ; line.stop }
-            )
-        let y_max = 
-            all_line_ends
-            |> Seq.map (fun c -> c.row)
-            |> Seq.max
-        in
-        let cave = empty (Some <| y_max + 2) in
+            |> Seq.collect (fun line -> line.ends)
+        let floor_depth =
+            if not with_floor then
+                None
+            else
+                let y_max = 
+                    all_line_ends
+                    |> Seq.map (fun c -> c.row)
+                    |> Seq.max
+                in
+                Some (y_max + 2)
+        let cave = {
+            cells = Map.empty
+            floor_depth = floor_depth
+        } in
         for line in lines do
             cave.draw_line line
         done;
@@ -223,10 +229,10 @@ module Cave = begin
                 if debug then printfn "Sand fell off!"
                 None
             else 
-                this.cells <- this.cells.Add(sand_position, Sand)
+                this[sand_position] <- Sand
                 Some sand_position
 
-        member this.drop_sand_with_floor() =
+        member this.drop_sand_with_floor () =
             let mutable sand_position = sand_origin in
             let mutable is_at_rest = false in
             while not is_at_rest do
@@ -251,7 +257,7 @@ module Cave = begin
                 | _ -> // Abyss is no longer possible, so any other case counts as total blockage
                     is_at_rest <- true
             done;
-            this.cells <- this.cells.Add(sand_position, Sand);
+            this[sand_position] <- Sand;
             sand_position
 
 end
@@ -264,7 +270,7 @@ module Puzzle = begin
             input
             |> Seq.collect Cave.Line.parse
         in
-        let cave = Cave.build lines in
+        let cave = Cave.build false lines in
         let mutable sand_counter = 0 in
         let mutable most_recent_sand_landing = Some {row = 0; col = 0}
         while most_recent_sand_landing.IsSome do
@@ -278,7 +284,7 @@ module Puzzle = begin
             input
             |> Seq.collect Cave.Line.parse
         in
-        let cave = Cave.build lines in
+        let cave = Cave.build true lines in
         let mutable sand_counter = 0 in
         let mutable most_recent_sand_landing = None
         while most_recent_sand_landing <> Some Cave.sand_origin do
