@@ -44,9 +44,9 @@ type ``Tests for Monkeys module`` ()=
         Monkeys.parse sample_input.[0..5]
         |> should equal {
             Monkeys.number = 0
-            Monkeys.items = new Queue<int>([79; 98])
-            Monkeys.operation = Monkeys.Operation.Multiply (Monkeys.Operation.Old, Monkeys.Operation.Constant 19)
-            Monkeys.divisibility_test = 23
+            Monkeys.items = new Queue<uint64>([79UL; 98UL])
+            Monkeys.operation = Monkeys.Operation.Multiply (Monkeys.Operation.Old, Monkeys.Operation.Constant 19UL)
+            Monkeys.divisibility_test = 23UL
             Monkeys.true_target = 2
             Monkeys.false_target = 3
             Monkeys.inspection_count = 0UL
@@ -60,11 +60,11 @@ type ``Tests for Monkeys module`` ()=
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         in
-        Monkeys.step (fun x -> x / 3) monkeys
+        Monkeys.step (fun x -> x / 3UL) monkeys
         |> Array.map (fun monkey -> monkey.items.ToArray())
         |> should equal [|
-            [| 20; 23; 27; 26 |];
-            [| 2080; 25; 167; 207; 401; 1046 |];
+            [| 20UL; 23UL; 27UL; 26UL |];
+            [| 2080UL; 25UL; 167UL; 207UL; 401UL; 1046UL |];
             Array.empty;
             Array.empty
         |]

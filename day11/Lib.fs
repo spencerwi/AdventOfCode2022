@@ -20,7 +20,7 @@ module Monkeys = begin
 
     module Operation = begin
         type Operand = 
-            | Constant of int
+            | Constant of uint64
             | Old
 
         type t =
@@ -33,12 +33,12 @@ module Monkeys = begin
             let op1 = 
                 match x with
                 | "old" -> Old
-                | _ -> Constant (int x)
+                | _ -> Constant (uint64 x)
             in
             let op2 = 
                 match y with
                 | "old" -> Old
-                | _ -> Constant (int y)
+                | _ -> Constant (uint64 y)
             in
             match operator with
             | "+" -> Add (op1, op2)
@@ -47,11 +47,11 @@ module Monkeys = begin
             | "/" -> Divide (op1, op2)
             | _ -> failwith ("Unrecognized operator: " + operator)
 
-        let eval_operand (old_value : int) = function
+        let eval_operand (old_value : uint64) = function
             | Constant x -> x
             | Old -> old_value
 
-        let eval (operation: t) (old_value : int) =
+        let eval (operation: t) (old_value : uint64) =
             match operation with
             | Add (op1, op2) -> (eval_operand old_value op1) + (eval_operand old_value op2)
             | Subtract (op1, op2) -> (eval_operand old_value op1) - (eval_operand old_value op2)
@@ -62,9 +62,9 @@ module Monkeys = begin
 
     type t = {
         number : int
-        items : Queue<int>
+        items : Queue<uint64>
         operation : Operation.t
-        divisibility_test : int
+        divisibility_test : uint64
         true_target : int
         false_target : int
         mutable inspection_count : uint64
@@ -77,13 +77,13 @@ module Monkeys = begin
         let starting_items = [
             for regex_match in Regex.Matches(lines.[1], "(?<item>\d+)") do
                 let item = regex_match.Groups["item"].Value in
-                yield int item
+                yield uint64 item
         ] in
         let operation_match = Regex.Match(lines.[2], "new = (?<x>old|\d+) (?<operator>\+|-|\*|/) (?<y>old|\d+)") in
         let operation = 
             Operation.parse operation_match.Groups["x"].Value operation_match.Groups["operator"].Value operation_match.Groups["y"].Value in
         let divisibility_test = 
-            int <| Regex.Match(lines.[3], "divisible by (?<factor>\d+)").Groups["factor"].Value 
+            uint64 <| Regex.Match(lines.[3], "divisible by (?<factor>\d+)").Groups["factor"].Value 
         in
         let true_target = 
             int <| Regex.Match(lines.[4], "throw to monkey (?<monkey>\d+)").Groups["monkey"].Value 
@@ -93,7 +93,7 @@ module Monkeys = begin
         in
         {
             number = number
-            items = new Queue<int>(starting_items)
+            items = new Queue<uint64>(starting_items)
             operation = operation
             divisibility_test = divisibility_test
             true_target = true_target
@@ -101,7 +101,7 @@ module Monkeys = begin
             inspection_count = 0UL
         }
 
-    let step (worry_modifier : int -> int) (monkeys : t array) : t array =
+    let step (worry_modifier : uint64 -> uint64) (monkeys : t array) : t array =
         let new_monkeys = Array.copy monkeys in
         let take_turn monkey_number =
             let monkey = new_monkeys.[monkey_number] in
@@ -115,7 +115,7 @@ module Monkeys = begin
                 in
                 let final_worry_level = worry_modifier operation_result in
                 let target = 
-                    if final_worry_level % (monkey.divisibility_test) = 0 then
+                    if final_worry_level % (monkey.divisibility_test) = 0UL then
                         monkey.true_target
                     else
                         monkey.false_target
@@ -136,10 +136,10 @@ module Monkeys = begin
 end
 
 module Puzzle = begin
-    let run (worry_modifier : int -> int) (round_count : int) (monkeys : Monkeys.t array) : uint64 =
+    let run (worry_modifier : uint64 -> uint64) (round_count : int) (monkeys : Monkeys.t array) : uint64 =
         let mutable state = monkeys in
         for round = 1 to round_count do
-            state <- Monkeys.step (fun x -> x / 3) state
+            state <- Monkeys.step worry_modifier state
         done;
         Monkeys.monkey_business_level state
 
@@ -150,7 +150,7 @@ module Puzzle = begin
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         in
-        run (fun x -> x / 3) 20 monkeys
+        run (fun x -> x / 3UL) 20 monkeys
 
     let part2 (input: string seq) =
         let monkeys = 
