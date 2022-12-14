@@ -67,7 +67,7 @@ type ``Cave module`` ()=
 
     [<Test>]
     member this.``It draws lines onto a cave correctly`` ()=
-        let cave = Cave.empty 5 10 0 in
+        let cave = Cave.empty None in
         let horizontal_line = { 
             start = { row = 2; col = 0 }
             stop = { row = 2; col = 9 }
@@ -78,8 +78,6 @@ type ``Cave module`` ()=
             "..........";
             "..........";
             "##########";
-            "..........";
-            "..........";
         ])
 
         let vertical_line = {

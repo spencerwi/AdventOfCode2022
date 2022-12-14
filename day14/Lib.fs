@@ -49,26 +49,6 @@ module Cave = begin
                 | Rock -> true
                 | _ -> false
 
-    type t = {
-        cells: Cell[,]
-        x_base: int
-    } with
-        member this.height = Array2D.length1 this.cells
-        member this.width = Array2D.length2 this.cells
-        member this.to_string : string =
-            String.concat "\n" <| seq {
-                for row = 0 to this.height - 1 do
-                    yield 
-                        this.cells[row, *]
-                        |> Seq.map (fun cell -> cell.to_string())
-                        |> String.concat ""
-            }
-    let empty (height : int) (width : int) (x_base : int) = 
-            { 
-                cells = Array2D.create height width Air
-                x_base = x_base
-            }
-
     type Coords = {
         row: int
         col: int
@@ -85,48 +65,10 @@ module Cave = begin
         member this.left() : Coords = { this with col = this.col - 1 }
         member this.right() : Coords = { this with col = this.col + 1 }
 
-    type t with
-        member this.rebase (coords : Coords) =
-            { coords with
-                col = coords.col - this.x_base
-            }
-        member this.sand_origin =
-            this.rebase {row = 0; col = 500}
-
-        member this.is_in_bounds (coords : Coords) =
-            coords.row >= 0 && coords.col >= 0 &&
-            coords.row < this.height &&
-            coords.col < this.width
-
-        member this.get (coords : Coords) =
-            if this.is_in_bounds coords then
-                this.cells[coords.row, coords.col]
-            else
-                Abyss
-
-        member this.add_floor() = 
-            // TODO: I also need to make it wider. Maybe not infinite, but I could try tripling the width by padding out more and see if that does the trick
-            // I would need to adjust the x_base, of course
-            let floor_height = this.height + 1 in
-            let new_cells = Array2D.init floor_height (this.width * 3) (fun row col ->
-                if row < this.height && col >= this.width && col < (this.width * 2) then 
-                    this.cells[row, col - this.width]
-                else
-                    Air
-            )
-            in
-            let new_cave = {
-                cells = new_cells
-                x_base = this.x_base - this.width
-            }
-            (floor_height, new_cave)
-
-        member this.get_with_floor (floor_height : int) (coords : Coords) =
-            if coords.row >= floor_height then
-                Rock
-            else
-                this.get coords
-
+    let sand_origin = {
+        row = 0
+        col = 500
+    }
 
     type Line = {
         start : Coords
@@ -144,17 +86,74 @@ module Cave = begin
                 stop = stop
             })
 
-    type t with
+    type t = {
+        mutable cells: Map<Coords, Cell>
+        mutable floor_depth: int option
+    } with
+        member this.depth =
+            match this.floor_depth with
+            | Some x -> x
+            | None -> 
+                this.cells.Keys
+                |> Seq.map (fun point -> point.row)
+                |> Seq.max
+
+        member this.width = 
+            let (leftmost, rightmost) = this.edges in
+            (rightmost - leftmost)
+            
+        member this.edges = 
+            let (leftmost, rightmost) =
+                this.cells.Keys
+                |> Seq.map (fun point -> point.col)
+                |> SeqExtras.min_and_max
+            in (leftmost.Value, rightmost.Value)
+
+        member this.get (coords : Coords) =
+            if this.cells.ContainsKey coords then
+                this.cells[coords]
+            elif coords.row > this.depth then
+                Abyss
+            else
+                Air
+
+        member this.get_with_floor (coords : Coords) =
+            match this.floor_depth with
+            | None -> this.get coords
+            | Some depth ->
+                if coords.row >= depth then
+                    Rock
+                else
+                    this.get coords
+
         member this.draw_line (line : Line) =
             let start, stop =
                 if line.stop > line.start then 
-                    (this.rebase line.start, this.rebase line.stop)
+                    (line.start, line.stop)
                 else 
-                    (this.rebase line.stop, this.rebase line.start)
+                    (line.stop, line.start)
             in
             for row = start.row to stop.row do
                 for col = start.col to stop.col do
-                    this.cells[row, col] <- Rock
+                    let point = {row = row; col = col} in
+                    this.cells <- this.cells.Add(point, Rock)
+
+        member this.to_string : string =
+            let (left_edge, right_edge) = this.edges in
+            String.concat "\n" <| seq {
+                for row = 0 to this.depth do
+                    yield String.concat "" <| seq {
+                        for col = left_edge to right_edge do
+                            let cell = this.get_with_floor {row = row; col = col}
+                            yield cell.to_string()
+                        }
+            }
+
+    let empty (floor_depth : int option) = 
+        { 
+            cells = Map.empty
+            floor_depth = floor_depth
+        }
 
     let build (lines : Line seq) =
         let all_line_ends =
@@ -162,21 +161,12 @@ module Cave = begin
             |> Seq.collect (fun line ->
                 seq { line.start ; line.stop }
             )
-        let (x_min, x_max) = 
-            all_line_ends
-            |> Seq.map (fun c -> c.col)
-            |> SeqExtras.min_and_max
-            |> (fun (min_maybe, max_maybe) ->
-                (min_maybe.Value, max_maybe.Value)
-            )
-        in
-        let width = 1 + (x_max - x_min) in
-        let height = 1 + (
+        let y_max = 
             all_line_ends
             |> Seq.map (fun c -> c.row)
             |> Seq.max
-        ) in
-        let cave = empty height width x_min in
+        in
+        let cave = empty (Some <| y_max + 2) in
         for line in lines do
             cave.draw_line line
         done;
@@ -184,7 +174,7 @@ module Cave = begin
 
     let state_to_string (cave : t) (sand_position : Coords) :string = 
         String.concat "\n" <| seq {
-            for row = 0 to cave.height - 1 do
+            for row = 0 to cave.depth - 1 do
                 yield String.concat "" <| seq {
                     for col = 0 to cave.width - 1 do
                         if {row = row; col = col} = sand_position then
@@ -196,7 +186,7 @@ module Cave = begin
 
     type t with
         member this.drop_sand () =
-            let mutable sand_position = this.sand_origin in
+            let mutable sand_position = sand_origin in
             let mutable is_at_rest = false in
             let mutable has_fallen_off = false in
             while not is_at_rest && not has_fallen_off do
@@ -233,11 +223,11 @@ module Cave = begin
                 if debug then printfn "Sand fell off!"
                 None
             else 
-                this.cells[sand_position.row, sand_position.col] <- Sand
+                this.cells <- this.cells.Add(sand_position, Sand)
                 Some sand_position
 
-        member this.drop_sand_with_floor (floor_height : int) =
-            let mutable sand_position = this.sand_origin in
+        member this.drop_sand_with_floor() =
+            let mutable sand_position = sand_origin in
             let mutable is_at_rest = false in
             while not is_at_rest do
                 if debug then
@@ -249,7 +239,7 @@ module Cave = begin
                         sand_position.down();
                         sand_position.down().left();
                         sand_position.down().right();
-                    ] |> List.map (this.get_with_floor floor_height)
+                    ] |> List.map this.get_with_floor
                 in
                 match options with
                 | [Air; _; _] -> 
@@ -261,7 +251,7 @@ module Cave = begin
                 | _ -> // Abyss is no longer possible, so any other case counts as total blockage
                     is_at_rest <- true
             done;
-            this.cells[sand_position.row, sand_position.col] <- Sand
+            this.cells <- this.cells.Add(sand_position, Sand);
             sand_position
 
 end
@@ -288,12 +278,11 @@ module Puzzle = begin
             input
             |> Seq.collect Cave.Line.parse
         in
-        let original_cave = Cave.build lines in
-        let (floor_height, cave) = original_cave.add_floor() in
+        let cave = Cave.build lines in
         let mutable sand_counter = 0 in
         let mutable most_recent_sand_landing = None
-        while most_recent_sand_landing <> Some cave.sand_origin do
-            most_recent_sand_landing <- Some (cave.drop_sand_with_floor floor_height)
+        while most_recent_sand_landing <> Some Cave.sand_origin do
+            most_recent_sand_landing <- Some (cave.drop_sand_with_floor())
             sand_counter <- sand_counter + 1
         done;
         sand_counter
