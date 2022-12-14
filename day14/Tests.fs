@@ -67,13 +67,13 @@ type ``Cave module`` ()=
 
     [<Test>]
     member this.``It draws lines onto a cave correctly`` ()=
-        let cave = Cave.empty 5 10 in
+        let cave = Cave.empty 5 10 0 in
         let horizontal_line = { 
             start = { row = 2; col = 0 }
             stop = { row = 2; col = 9 }
         } in
-        Cave.draw_line cave horizontal_line;
-        Cave.to_string cave 
+        cave.draw_line horizontal_line;
+        cave.to_string 
         |> should equal (String.concat "\n" <| [
             "..........";
             "..........";
@@ -86,8 +86,8 @@ type ``Cave module`` ()=
             start = { row = 0; col = 4 }
             stop = { row = 4; col = 4 }
         } in
-        Cave.draw_line cave vertical_line;
-        Cave.to_string cave 
+        cave.draw_line vertical_line;
+        cave.to_string 
         |> should equal (String.concat "\n" <| [
             "....#.....";
             "....#.....";
@@ -106,4 +106,4 @@ type ``Tests for solution`` ()=
     [<Test>]
     member this.``It should solve part 2`` ()=
         Puzzle.part2 sample_input
-        |> should equal "the right answer"
+        |> should equal 93
