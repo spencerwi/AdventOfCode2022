@@ -31,12 +31,19 @@ module Cave = begin
         | Air
         | Rock
         | Sand
+        | Abyss
         with 
             member this.to_string() : String =
                 match this with
                 | Air -> "."
                 | Rock -> "#"
                 | Sand -> "o"
+                | Abyss -> " "
+            member this.blocks_sand() : bool =
+                match this with
+                | Sand -> true
+                | Rock -> true
+                | _ -> false
 
     type t = Cell[,]
     let empty (height : int) (width : int) = 
@@ -66,6 +73,29 @@ module Cave = begin
         member this.down() : Coords = { this with row = this.row + 1 }
         member this.left() : Coords = { this with col = this.col - 1 }
         member this.right() : Coords = { this with col = this.col + 1 }
+
+    let state_to_string (cave : t) (sand_position : Coords) :string = 
+        String.concat "\n" <| seq {
+            for row = 0 to (Array2D.length1 cave) - 1 do
+                yield String.concat "" <| seq {
+                    for col = 0 to (Array2D.length2 cave - 1) do
+                        if {row = row; col = col} = sand_position then
+                            yield Sand.to_string()
+                        else
+                            yield cave[row, col].to_string()
+                }
+        }
+
+    let is_in_bounds (cave : t) (coords : Coords) =
+        coords.row >= 0 && coords.col >= 0 &&
+        coords.row < (Array2D.length1 cave) &&
+        coords.col < (Array2D.length2 cave)
+
+    let get (cave : t) (coords : Coords) =
+        if is_in_bounds cave coords then
+            cave[coords.row, coords.col]
+        else
+            Abyss
 
     type Line = {
         start : Coords
@@ -125,13 +155,49 @@ module Cave = begin
         for line in rebased_lines do
             draw_line cave line
         done;
-        cave
+        (x_min, cave)
 
-    let drop_sand (cave : t) =
-        // TODO: drop_sand function, which modifies the cave in-place and returns 
-        //  Some (new_sand_location) if the grain of sand landed, or None if it dropped into the abyss
-        None
-
+    let drop_sand (x_base : int) (cave : t) =
+        let mutable sand_position = {
+            row = 0
+            col = 500 - x_base
+        } in
+        let mutable is_at_rest = false in
+        let mutable has_fallen_off = false in
+        while not is_at_rest && not has_fallen_off do
+            Console.Clear();
+            Console.WriteLine(state_to_string cave sand_position);
+            let options = 
+                [
+                    sand_position.down();
+                    sand_position.down().left();
+                    sand_position.down().right()
+                ] |> List.map (get cave)
+            in
+            match options with
+            | [Abyss; _; _] -> 
+                has_fallen_off <- true
+            | [x; Abyss; _] when x.blocks_sand() ->
+                has_fallen_off <- true
+            | [x; y; Abyss] when x.blocks_sand() && y.blocks_sand() ->
+                has_fallen_off <- true
+            | [x; y; z] when x.blocks_sand() && y.blocks_sand() && z.blocks_sand() ->
+                is_at_rest <- true
+            | [Air; _; _] ->
+                sand_position <- sand_position.down()
+            | [x; Air; _] when x.blocks_sand() ->
+                sand_position <- sand_position.down().left()
+            | [x; y; Air] when x.blocks_sand() && y.blocks_sand() ->
+                sand_position <- sand_position.down().right()
+        done;
+        Console.Clear();
+        Console.WriteLine(state_to_string cave sand_position);
+        if has_fallen_off then 
+            printfn "Sand fell off!"
+            None
+        else 
+            cave[sand_position.row, sand_position.col] <- Sand
+            Some sand_position
 end
 
 module Puzzle = begin
@@ -140,11 +206,11 @@ module Puzzle = begin
             input
             |> Seq.collect Cave.Line.parse
         in
-        let cave = Cave.build lines in
-        let mutable most_recent_sand_landing = Cave.drop_sand cave in
+        let (x_base, cave) = Cave.build lines in
+        let mutable most_recent_sand_landing = Cave.drop_sand x_base cave in
         let mutable sand_counter = 1 in
         while most_recent_sand_landing.IsSome do
-            most_recent_sand_landing <- Cave.drop_sand cave
+            most_recent_sand_landing <- Cave.drop_sand x_base cave
             sand_counter <- sand_counter + 1
         done;
         sand_counter
