@@ -3,46 +3,89 @@ module Lib
 open System
 open System.Collections.Generic
 
-module Mountain = begin
-    type t = int[,]
+type Coords = {
+    row: int
+    col: int
+} with
+    member this.up = {this with col = this.col - 1}
+    member this.down = {this with col = this.col + 1}
+    member this.left = {this with row = this.row - 1}
+    member this.right = {this with row = this.row + 1}
 
-    let size (mountain : t) = 
-        (Array2D.length1 mountain, Array2D.length2 mountain)
+type Mountain = {
+    locations: int[,]
+} with
+    member this.height = Array2D.length1 this.locations
+    member this.width = Array2D.length2 this.locations
+    member this.size = (this.height, this.width)
 
-    type Coords = {
-        row: int
-        col: int
-    }
+    member this.Item 
+        with get (coords : Coords) =
+            this.locations[coords.row, coords.col]
 
-    let up (coords : Coords) = {coords with col = coords.col - 1}
-    let down (coords : Coords) = {coords with col = coords.col + 1}
-    let left (coords : Coords) = {coords with row = coords.row - 1}
-    let right (coords : Coords) = {coords with row = coords.row + 1}
+    member this.is_in_bounds (point : Coords) =
+        point.row >= 0 && point.col >= 0 &&
+        point.row < this.height &&
+        point.col < this.width
 
-    let all_low_points (mountain : t) : Coords seq =
+
+    member this.all_low_points =
         seq {
-            for row = 0 to (Array2D.length1 mountain) - 1 do
-            for col = 0 to (Array2D.length2 mountain) - 1 do
-            if mountain[row, col] = 0 then
+            for row = 0 to this.height - 1 do
+            for col = 0 to this.width - 1 do
+            if this.locations[row, col] = 0 then
                 yield { row = row; col = col }
         }
 
+    member this.is_reachable_from (src : Coords) (dest : Coords) =
+        this[dest] <= (this[src] + 1)
 
-    type State = {
-        current_position : Coords
-        goal : Coords
-        mountain : t
-    }
+    member this.available_next_steps_from (current_position: Coords) =
+        seq {
+                         current_position.up;
+            current_position.left; current_position.right;
+                         current_position.down
+        }
+        |> Seq.filter this.is_in_bounds
+        |> Seq.filter (this.is_reachable_from current_position)
 
-    let is_in_bounds (mountain : t) (point : Coords) =
-        point.row >= 0 && point.col >= 0 &&
-        point.row < (Array2D.length1 mountain) &&
-        point.col < (Array2D.length2 mountain)
+    /// <description>
+    /// Dijkstra's algorithm, recycled from AoC 2021 day 15, because why figure this out from scratch again?
+    /// </description>
+    member this.find_shortest_path (goal : Coords) (start : Coords) =
+        let height, width = this.size in
+        // Let's dijkstra this business, yo
+        
+        // We'll keep track of how far each point in the grid is from the source by using a separate grid of the same size
+        let distancesFromSource = Array2D.create height width Int32.MaxValue in
+        distancesFromSource[start.row, start.col] <- 0 // the source *is* the source, my dude
 
-    let is_reachable_from (mountain : t) (src : Coords) (dest : Coords) =
-        mountain.[dest.row, dest.col] <= (mountain.[src.row, src.col] + 1)
+        // Now, we want to walk from the source "outwards" and trace each shortest path. 
+        // Sometimes, we'll see a cell again but on a shorter path. No worries, dawg, just 
+        // update its distance-from-the-source and go check it out again to see if anything's 
+        // changed about it.
+        let unsettled = new Queue<Coords>([start]) in
+        while unsettled.Count > 0 do
+            let current = unsettled.Dequeue() in
+            for neighbor in (this.available_next_steps_from current) do
+                let existingDistance = distancesFromSource[neighbor.row, neighbor.col] in
+                let distanceThroughCurrent = distancesFromSource[current.row, current.col] + 1 in
+                if distanceThroughCurrent < existingDistance then
+                    distancesFromSource.[neighbor.row, neighbor.col] <- distanceThroughCurrent
+                    unsettled.Enqueue neighbor
+            done
+        done;
+        // Finally, we can answer the question: 
+        // How long is the shortest path between start and end?
+        distancesFromSource[goal.row, goal.col]
 
-    let parse (input : string array) = 
+
+type State = {
+    current_position : Coords
+    goal : Coords
+    mountain : Mountain
+} with
+    static member parse (input : string array) = 
         let mutable startPosition = {
             row = 0; col = 0
         }
@@ -75,60 +118,21 @@ module Mountain = begin
         { 
             current_position = startPosition
             goal = goalPosition
-            mountain = mountain
+            mountain = {
+                locations = mountain
+            }
         }
-
-    let available_next_steps_from (mountain : t) (current_position: Coords) =
-        seq {
-            (up current_position);
-            (left current_position); (right current_position);
-            (down current_position)
-        }
-        |> Seq.filter (is_in_bounds mountain)
-        |> Seq.filter (is_reachable_from mountain current_position)
-
-    /// <description>
-    /// Dijkstra's algorithm, recycled from AoC 2021 day 15, because why figure this out from scratch again?
-    /// </description>
-    let find_shortest_path (mountain : t) (goal : Coords) (start : Coords) =
-        let height, width = size mountain in
-        // Let's dijkstra this business, yo
-        
-        // We'll keep track of how far each point in the grid is from the source by using a separate grid of the same size
-        let distancesFromSource = Array2D.create height width Int32.MaxValue in
-        distancesFromSource[start.row, start.col] <- 0 // the source *is* the source, my dude
-
-        // Now, we want to walk from the source "outwards" and trace each shortest path. 
-        // Sometimes, we'll see a cell again but on a shorter path. No worries, dawg, just 
-        // update its distance-from-the-source and go check it out again to see if anything's 
-        // changed about it.
-        let unsettled = new Queue<Coords>([start]) in
-        while unsettled.Count > 0 do
-            let current = unsettled.Dequeue() in
-            for neighbor in (available_next_steps_from mountain current) do
-                let existingDistance = distancesFromSource[neighbor.row, neighbor.col] in
-                let distanceThroughCurrent = distancesFromSource[current.row, current.col] + 1 in
-                if distanceThroughCurrent < existingDistance then
-                    distancesFromSource.[neighbor.row, neighbor.col] <- distanceThroughCurrent
-                    unsettled.Enqueue neighbor
-            done
-        done;
-        // Finally, we can answer the question: 
-        // How long is the shortest path between start and end?
-        distancesFromSource[goal.row, goal.col]
-        
-end
 
 module Puzzle = begin
     let part1 (input: string array) =
-        let state = Mountain.parse input in
-        Mountain.find_shortest_path state.mountain state.goal state.current_position
+        let state = State.parse input in
+        state.mountain.find_shortest_path state.goal state.current_position
 
     let part2 (input: string array) =
-        let state = Mountain.parse input in
-        let candidate_start_positions = Mountain.all_low_points state.mountain in
+        let state = State.parse input in
+        let candidate_start_positions = state.mountain.all_low_points in
         candidate_start_positions
-        |> Seq.map (Mountain.find_shortest_path state.mountain state.goal)
+        |> Seq.map (state.mountain.find_shortest_path state.goal)
         |> Seq.min
 
 end

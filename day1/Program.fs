@@ -1,13 +1,17 @@
-﻿let split_seq_when (test: 'a -> bool) (inputs: 'a seq) : 'a seq seq =
-    seq {
-        let mutable current_seq = Seq.empty in
-        for current_value in inputs do
-            if (test current_value) then
-                yield current_seq;
-                current_seq <- Seq.empty
-            else
-                current_seq <- Seq.append current_seq (seq { current_value })
-    }
+﻿module SeqExtras = begin
+    let split_on (delimiter : 'a) (inputs: 'a seq) : 'a seq seq =
+        seq {
+            let mutable current_seq = Seq.empty in
+            for current_value in inputs do
+                if (current_value = delimiter) then
+                    yield current_seq;
+                    current_seq <- Seq.empty
+                else
+                    current_seq <- Seq.append current_seq (seq { current_value })
+            done;
+            yield current_seq
+        }
+end
 
 let () =
     let input_lines = 
@@ -16,7 +20,7 @@ let () =
     in
     let elves : int seq seq =
         input_lines
-        |> split_seq_when ((=) "")
+        |> SeqExtras.split_on ""
         |> Seq.map (Seq.map int)
     in
     let top_elf_weights =

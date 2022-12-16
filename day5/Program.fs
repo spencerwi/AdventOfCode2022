@@ -9,7 +9,17 @@ module Stacks = begin
         count: int
         src: int
         dest: int
-    }
+    } with 
+        static member parse (line : string) : Movement =
+            let pattern = "move (?<count>\d+) from (?<src>\d) to (?<dest>\d)" in
+            let matched = Regex.Match(line, pattern) in
+            let src = (int matched.Groups["src"].Value) - 1 in
+            let dest = (int matched.Groups["dest"].Value) - 1 in
+            {
+                count = (int matched.Groups["count"].Value)
+                src = src
+                dest = dest
+            }
 
     /// <description>
     /// WARNING: modifies the stacks in-place!
@@ -49,17 +59,6 @@ module Stacks = begin
                 if crateName <> ' ' then
                     stacks.[column_number].Push(crateName)
         stacks
-
-    let parse_movement (line : string) : Movement =
-        let pattern = "move (?<count>\d+) from (?<src>\d) to (?<dest>\d)" in
-        let matched = Regex.Match(line, pattern) in
-        let src = (int matched.Groups["src"].Value) - 1 in
-        let dest = (int matched.Groups["dest"].Value) - 1 in
-        {
-            count = (int matched.Groups["count"].Value)
-            src = src
-            dest = dest
-        }
 end
 
 let run_instructions (stacks : Stacks.t) (instructions: Stacks.Movement seq) mover_fn =
@@ -91,7 +90,7 @@ let () =
     let instructions = 
         raw_lines 
         |> Array.skip (blank_line_index + 1)
-        |> Seq.map Stacks.parse_movement
+        |> Seq.map Stacks.Movement.parse
     in 
     printfn "Part 1: %s" (part1 stacks_str instructions)
     printfn "Part 2: %s" (part2 stacks_str instructions)

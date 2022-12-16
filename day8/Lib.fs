@@ -3,7 +3,6 @@ module Lib
 open System
 
 module Forest = begin
-    type t = int[,]
     type Coords = {
         row: int
         col: int
@@ -19,107 +18,106 @@ module Forest = begin
         Up; Down; Left; Right
     }
 
+    type t = {
+        cells : int[,]
+    } with
+        member this.height = Array2D.length1 this.cells
+        member this.width = Array2D.length2 this.cells
 
-    let parse (input : string array) : t =
-        input
-        |> Array.map (fun line -> [| 
-            for character in line.Trim() do
-                yield character |> string |> int
-        |])
-        |> array2D
+        member this.get (coords : Coords) =
+            this.cells[coords.row, coords.col]
 
-    let height (forest : t) =
-        Array2D.length1 forest
+        member this.Item 
+            with get (coords : Coords) = this.get coords
 
-    let width (forest : t) =
-        Array2D.length2 forest
+        member this.sightline_from (coords : Coords) (direction : Direction) =
+            match direction with
+            | Up ->
+                seq {
+                    for i = (coords.row - 1) downto 0 do
+                        yield { coords with row = i }
+                }
+            | Down -> 
+                seq {
+                    for i = (coords.row + 1) to (this.height - 1) do
+                        yield { coords with row = i }
+                }
+            | Left -> 
+                seq {
+                    for i = (coords.col - 1) downto 0 do
+                        yield { coords with col = i }
+                }
+            | Right -> 
+                seq { 
+                    for i = (coords.col + 1) to (this.width - 1) do
+                        yield { coords with col = i }
+                }
 
-    let get (forest : t) (coords : Coords) : int =
-        forest.[coords.row, coords.col]
-
-    let all_coords_in (forest : t) : Coords seq =
-        seq {
-            for row = 0 to ((height forest) - 1) do
-                for col = 0 to ((width forest) - 1) do
-                    yield { row = row; col = col}
-        }
-
-    let is_in_bounds (coords : Coords) (forest : t) =
-        coords.row >= 0 && coords.row < (height forest) &&
-        coords.col >= 0 && coords.col < (width forest)
-
-    let sightline_cells (forest : t) (coords : Coords) (direction : Direction)  =
-        match direction with
-        | Up ->
+        member this.all_coords : Coords seq =
             seq {
-                for i = (coords.row - 1) downto 0 do
-                    yield { coords with row = i }
+                for row = 0 to (this.height - 1) do
+                    for col = 0 to (this.width - 1) do
+                        yield {row = row; col = col}
             }
-        | Down -> 
+
+        member this.is_visible_from_edges (coords : Coords) : bool =
+            let this_tree = this[coords] in
+            directions
+            |> Seq.exists (fun direction ->
+                this.sightline_from coords direction
+                |> Seq.map this.get
+                |> Seq.forall (fun other_tree -> other_tree < this_tree)
+            )
+
+        member this.trees_visible_from_point (coords : Coords) (direction : Direction) : int seq =
+            let this_tree = this[coords] in
+            let mutable has_hit_boundary = false in
             seq {
-                for i = (coords.row + 1) to ((height forest) - 1) do
-                    yield { coords with row = i }
-            }
-        | Left -> 
-            seq {
-                for i = (coords.col - 1) downto 0 do
-                    yield { coords with col = i }
-            }
-        | Right -> 
-            seq { 
-                for i = (coords.col + 1) to ((width forest) - 1) do
-                    yield { coords with col = i }
+                for other_tree_coords in (this.sightline_from coords direction) do
+                    let other_tree = this[other_tree_coords] in
+                    if not has_hit_boundary then
+                        if (other_tree < this_tree) then
+                            yield other_tree
+                        else 
+                            has_hit_boundary <- true
+                            yield other_tree
             }
 
-    let is_visible_from_edges (forest : t) (coords : Coords) : bool =
-        let this_tree = get forest coords in
-        directions
-        |> Seq.exists (fun direction ->
-            sightline_cells forest coords direction
-            |> Seq.map (get forest)
-            |> Seq.forall (fun other_tree -> other_tree < this_tree)
-        )
+        member this.scenic_score (coords : Coords) : int =
+            let this_tree = this[coords] in
+            let viewing_distances = seq {
+                for direction in directions do
+                    let viewing_distance = 
+                        this.trees_visible_from_point coords direction
+                        |> Seq.length
+                    in
+                    yield viewing_distance
+            }
+            in
+            Seq.reduce (*) viewing_distances
 
-    let trees_visible_from_point (forest : t) (coords : Coords) (direction : Direction) =
-        let this_tree = get forest coords in
-        let mutable has_hit_boundary = false in
-        seq {
-            for other_tree_coords in (sightline_cells forest coords direction) do
-                let other_tree = get forest other_tree_coords in
-                if not has_hit_boundary then
-                    if (other_tree < this_tree) then
-                        yield other_tree
-                    else 
-                        has_hit_boundary <- true
-                        yield other_tree
 
-        }
-
-    let scenic_score (forest : t) (coords : Coords) : int =
-        let this_tree = get forest coords in
-        let viewing_distances = seq {
-            for direction in directions do
-                let viewing_distance = 
-                    trees_visible_from_point forest coords direction
-                    |> Seq.length
-                in
-                yield viewing_distance
-        }
-        in
-        Seq.reduce (*) viewing_distances
-
+    let parse (input : string array) : t = 
+        let cells = 
+            input
+            |> Array.map (fun line -> [| 
+                for character in line.Trim() do
+                    yield character |> string |> int
+            |])
+            |> array2D
+        in { cells = cells }
 end
 
 module Puzzle = begin
     let part1 (input: string array) =
         let forest = Forest.parse input in
-        Forest.all_coords_in forest
-        |> Seq.filter (Forest.is_visible_from_edges forest)
+        forest.all_coords
+        |> Seq.filter forest.is_visible_from_edges
         |> Seq.length
 
     let part2 (input: string array) =
         let forest = Forest.parse input in
-        Forest.all_coords_in forest
-        |> Seq.map (Forest.scenic_score forest)
+        forest.all_coords
+        |> Seq.map forest.scenic_score
         |> Seq.max
 end

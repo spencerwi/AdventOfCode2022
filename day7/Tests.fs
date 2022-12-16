@@ -32,12 +32,11 @@ $ ls
 type ``filesystem parsing`` ()=
 
     let subdir_names (dir : Filesystem.Directory) =
-        dir.subdirs
-        |> Seq.map (fun d -> d.name)
+        dir.subdirs.Keys
         |> Set.ofSeq
 
     let file_names_and_sizes (dir : Filesystem.Directory) =
-        dir.files
+        dir.files.Values
         |> Seq.map (fun f -> sprintf "%s (%d)" f.name f.size)
         |> Set.ofSeq
 
@@ -50,18 +49,18 @@ type ``filesystem parsing`` ()=
         file_names_and_sizes ``/``
         |> should equal (Set.ofList [ "b.txt (14848514)"; "c.dat (8504156)" ]);
 
-        let ``/a`` = Filesystem.get_dir ``/`` "a" in
+        let ``/a`` = ``/``.subdir "a"in
         subdir_names ``/a``
         |> should equal (Set.ofList ["e"]);
 
         file_names_and_sizes ``/a``
         |> should equal (Set.ofList ["f (29116)"; "g (2557)"; "h.lst (62596)"]);
 
-        let ``/a/e`` = Filesystem.get_dir ``/a`` "e" in
+        let ``/a/e`` = ``/a``.subdir "e" in
         subdir_names ``/a/e`` 
         |> should be Empty;
 
-        let ``/d`` = Filesystem.get_dir ``/`` "d" in
+        let ``/d`` = ``/``.subdir "d" in
         subdir_names ``/d``
         |> should be Empty;
 

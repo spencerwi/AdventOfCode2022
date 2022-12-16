@@ -4,17 +4,20 @@ open System
 open System.Text.RegularExpressions
 open System.Collections.Generic
 
-let split_sequence_on (delimiter : 'a) (sequence : 'a seq) : 'a seq seq =
-    seq {
-        let mutable current = Seq.empty in
-        for item in sequence do
-            if item = delimiter then
-                yield current
-                current <- Seq.empty
-            else
-                current <- Seq.append current (seq { item })
-        yield current
-    }
+module SeqExtras = begin
+    let split_on (delimiter : 'a) (sequence : 'a seq) : 'a seq seq =
+        seq {
+            let mutable current = Seq.empty in
+            for item in sequence do
+                if item = delimiter then
+                    yield current
+                    current <- Seq.empty
+                else
+                    current <- Seq.append current (seq { item })
+            yield current
+        }
+
+end
 
 module Monkeys = begin
 
@@ -146,7 +149,7 @@ module Puzzle = begin
     let part1 (input: string seq) =
         let monkeys = 
             input
-            |> split_sequence_on ""
+            |> SeqExtras.split_on ""
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         in
@@ -155,7 +158,7 @@ module Puzzle = begin
     let part2 (input: string seq) =
         let monkeys = 
             input
-            |> split_sequence_on ""
+            |> SeqExtras.split_on ""
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         in

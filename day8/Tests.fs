@@ -17,8 +17,11 @@ let sample_input = [|
 type ``Forest module`` ()=
     [<Test>]
     member this.``it should parse input correctly`` ()=
-        sample_input
-        |> Forest.parse
+        let forest = 
+            sample_input
+            |> Forest.parse
+        in
+        forest.cells
         |> should equal (array2D [|
             [| 3; 0; 3; 7; 3 |];
             [| 2; 5; 5; 1; 2 |];
@@ -33,22 +36,22 @@ type ``Forest module`` ()=
             sample_input
             |> Forest.parse
         in
-        Forest.sightline_cells forest {row = 2; col = 2} Forest.Left
+        forest.sightline_from {row = 2; col = 2} Forest.Left
         |> should equal (seq { 
             { Forest.row = 2; Forest.col = 1 }
             { Forest.row = 2; Forest.col = 0 }
         });
-        Forest.sightline_cells forest {row = 2; col = 2} Forest.Right
+        forest.sightline_from {row = 2; col = 2} Forest.Right
         |> should equal (seq { 
             { Forest.row = 2; Forest.col = 3 }
             { Forest.row = 2; Forest.col = 4 }
         })
-        Forest.sightline_cells forest {row = 2; col = 2} Forest.Up
+        forest.sightline_from {row = 2; col = 2} Forest.Up
         |> should equal (seq { 
             { Forest.row = 1; Forest.col = 2 }
             { Forest.row = 0; Forest.col = 2 }
         })
-        Forest.sightline_cells forest {row = 2; col = 2} Forest.Down
+        forest.sightline_from {row = 2; col = 2} Forest.Down
         |> should equal (seq { 
             { Forest.row = 3; Forest.col = 2 }
             { Forest.row = 4; Forest.col = 2 }
@@ -60,16 +63,16 @@ type ``Forest module`` ()=
             sample_input
             |> Forest.parse
         in
-        Forest.is_visible_from_edges forest {row = 1; col = 1}
+        forest.is_visible_from_edges {row = 1; col = 1}
         |> should equal true
-        Forest.is_visible_from_edges forest {row = 1; col = 2}
+        forest.is_visible_from_edges {row = 1; col = 2}
         |> should equal true
-        Forest.is_visible_from_edges forest {row = 3; col = 2}
+        forest.is_visible_from_edges {row = 3; col = 2}
         |> should equal true
-        Forest.is_visible_from_edges forest {row = 4; col = 3}
+        forest.is_visible_from_edges {row = 4; col = 3}
         |> should equal true
 
-        Forest.is_visible_from_edges forest {row = 2; col = 2}
+        forest.is_visible_from_edges {row = 2; col = 2}
         |> should equal false
 
     [<Test>]
@@ -78,13 +81,13 @@ type ``Forest module`` ()=
             sample_input
             |> Forest.parse
         in
-        Forest.trees_visible_from_point forest { row = 1; col = 2} Forest.Up
+        forest.trees_visible_from_point { row = 1; col = 2} Forest.Up
         |> should equal (seq { 3 })
-        Forest.trees_visible_from_point forest { row = 1; col = 2} Forest.Left
+        forest.trees_visible_from_point { row = 1; col = 2} Forest.Left
         |> should equal (seq { 5 })
-        Forest.trees_visible_from_point forest { row = 1; col = 2} Forest.Right
+        forest.trees_visible_from_point { row = 1; col = 2} Forest.Right
         |> should equal (seq { 1; 2 })
-        Forest.trees_visible_from_point forest { row = 1; col = 2} Forest.Down
+        forest.trees_visible_from_point { row = 1; col = 2} Forest.Down
         |> should equal (seq { 3; 5 })
 
     [<Test>]
@@ -93,9 +96,9 @@ type ``Forest module`` ()=
             sample_input
             |> Forest.parse
         in
-        Forest.scenic_score forest { row = 1; col = 2}
+        forest.scenic_score { row = 1; col = 2}
         |> should equal 4;
-        Forest.scenic_score forest { row = 3; col = 2}
+        forest.scenic_score { row = 3; col = 2}
         |> should equal 8
 
 

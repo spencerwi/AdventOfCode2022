@@ -56,7 +56,7 @@ type ``Tests for Monkeys module`` ()=
     member this.``It plays a round with division-by-3 correctly`` ()=
         let monkeys = 
             sample_input
-            |> Lib.split_sequence_on ""
+            |> SeqExtras.split_on ""
             |> Array.ofSeq
             |> Array.map Monkeys.parse
         in

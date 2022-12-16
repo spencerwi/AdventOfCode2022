@@ -1,6 +1,6 @@
 module Tests
 open Lib
-open Lib.RopeMovement
+open Lib.Rope
 
 open NUnit.Framework
 open FsUnit
@@ -20,7 +20,7 @@ let sample_input = [|
 type ``RopeMovement module``()=
     [<Test>]
     member this.``it should parse movements correctly`` ()=
-        let movements = Seq.map RopeMovement.parse sample_input in
+        let movements = Seq.map Rope.Movement.parse sample_input in
         movements
         |> should equal (seq {
             right 4;
@@ -35,7 +35,7 @@ type ``RopeMovement module``()=
 
     [<Test>]
     member this.``it should move correctly`` ()= 
-        let movements = Seq.map RopeMovement.parse sample_input in
+        let movements = Seq.map Rope.Movement.parse sample_input in
         let expected_positions = [|
             // R 4
             ({ x = 4; y = 0 }, {x = 3; y = 0});
@@ -54,7 +54,7 @@ type ``RopeMovement module``()=
             // R 2
             ({ x = 2; y = 2 }, {x = 1; y = 2})
         |]
-        let mutable state = initial_rope_state 2 in
+        let mutable state = Rope.make 2 in
         let mutable i = 0 in
         for movement in movements do
             printfn "Moving %A" movement;

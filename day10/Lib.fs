@@ -32,17 +32,6 @@ module VideoSystem = begin
                 let segments = command_str.Trim().Split [|' '|] in
                 let amount = int segments.[1] in
                 Addx amount
-
-        let compile (commands : t array) : Map<int, int> =
-            let mutable result = Map.empty in
-            for (i, command) in Seq.indexed commands do
-                result <- 
-                    match command with
-                    | Addx amount -> Map.add (i + 3) amount result
-                    | _ -> result
-            done;
-            result
-
     end
 
     let step (state : State) = function
@@ -58,10 +47,30 @@ module VideoSystem = begin
             }
 
     let run hook commands =
-        let mutable state = build hook in
-        for command in commands do
-            state <- step state command
+        Seq.fold step (build hook) commands
 
+    type Screen = 
+        {
+            pixels: string[,]
+        } with
+            member this.height = Array2D.length1 this.pixels
+            member this.width = Array2D.length2 this.pixels
+            member this.try_to_draw (program_counter, x) =
+                let row = program_counter / this.width in
+                let col = program_counter % this.width in
+                if List.contains col [x .. (x + 2)] then
+                    this.pixels[row, col] <- "#"
+
+            member this.to_string() = 
+                String.concat "\n" (seq {
+                    for row = 0 to (this.height - 1) do
+                        yield String.concat "" this.pixels[row,*]
+                })
+
+            static member make height width = 
+                {
+                    pixels = Array2D.create 6 40 "."
+                }
 end
 
 module Puzzle = begin
@@ -77,7 +86,7 @@ module Puzzle = begin
                 let signal_strength = x * program_counter in
                 interval_sum <- interval_sum + signal_strength
         in
-        VideoSystem.run hook commands;
+        VideoSystem.run hook commands |> ignore;
         interval_sum
 
 
@@ -87,16 +96,8 @@ module Puzzle = begin
             |> Array.ofSeq
             |> Array.map VideoSystem.Command.parse
         in
-        let mutable screen = Array2D.create 6 40 "." in
-        let hook (program_counter, x) =
-            let row = program_counter / 40 in 
-            let col = program_counter % 40 in
-            if List.contains col [ x .. (x + 2) ] then
-                screen[row, col] <- "#"
-        in
-        VideoSystem.run hook commands;
-        String.concat "\n" (seq {
-            for row = 0 to (Array2D.length1 screen) - 1 do
-                yield String.concat "" screen.[row,*] 
-        })
+        let mutable screen = VideoSystem.Screen.make 6 40 in
+        let hook = screen.try_to_draw in
+        VideoSystem.run hook commands |> ignore;
+        screen.to_string()
 end
