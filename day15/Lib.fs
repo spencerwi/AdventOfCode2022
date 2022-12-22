@@ -61,11 +61,6 @@ module Space = begin
             | Beacon -> true
             | _ -> false
         
-        member this.range =
-            match this with
-            | Sensor (_, range) -> range
-            | _ -> 0
-
         member this.range_boundaries = 
             match this with 
             | Sensor (location, range) ->
@@ -111,40 +106,18 @@ module Space = begin
             |> Seq.map (fun point -> point.y)
             |> SeqExtras.min_and_max
 
-        member this.beacon_locations =
-            this.objects
-            |> Map.filter (fun location cell -> SpaceObject.isBeacon cell)
-            |> Map.keys
-
         member this.sensors =
             this.objects.Values
-            |> Seq.filter (function 
-                | Sensor _ -> true
-                | _ -> false
-            )
-
-        member this.points_in_range_of (p: Point) : Set<Point> =
-            match this[p] with
-            | Beacon | EmptySpace -> Set.empty
-            | Sensor (_, range) ->
-                Set.ofSeq <| seq {
-                    for x = (p.x - range) to (p.x + range) do
-                        for y = (p.x - range) to (p.y + range) do
-                            let candidate = {x = x; y = y} in
-                            if p.distance_to candidate <= range then
-                                yield candidate
-                }
+            |> Seq.filter SpaceObject.isSensor
 
         member this.colinear_points_in_range_of (p: Point) (y: int) : Set<Point> =
             match this[p] with
             | Beacon | EmptySpace -> Set.empty
             | Sensor (_, range) ->
-                Set.ofSeq <| seq {
-                    for x = (p.x - range) to (p.x + range) do
-                        let candidate = {x = x; y = y} in
-                        if p.distance_to candidate <= range then
-                            yield candidate
-                }
+                seq { (p.x - range) .. (p.x + range) }
+                |> PSeq.map (fun x -> {x = x; y = y})
+                |> PSeq.filter (fun candidate -> p.distance_to candidate <= range)
+                |> Set.ofSeq
 
         member this.to_string() =
             let x_min, x_max = this.x_edges in
@@ -161,11 +134,7 @@ module Space = begin
             this.sensors
             |> PSeq.map (fun (Sensor (location, range)) -> this.colinear_points_in_range_of location y)
             |> Set.unionMany
-            |> Set.filter (fun point -> 
-                match this.objects.TryFind point with
-                | Some Beacon -> false
-                | _ -> true
-            )
+            |> Set.filter (this.get >> SpaceObject.isBeacon >> not)
 
     let empty() = 
         { objects = Map.empty }
