@@ -58,18 +58,10 @@ type ``Space module`` ()=
         ])
 
     [<Test>]
-    member this.``It preserves closest-beacon information for sensors`` ()=
+    member this.``It preserves location information for sensors`` ()=
         let space = (Space.build sample_input) in
         space[{x=8; y=7}]
-        |> should equal (Sensor {x=2; y=10})
-
-//    [<Test>]
-//    member this.``It finds points in range of a given sensor`` ()=
-//        let space = Space.build sample_input in
-//        space.points_in_range_of {x=8; y=7}
-//        |> should equal (Set.ofSeq <| seq {
-//            {x = 
-//        })
+        |> should equal (Sensor ({x=8; y=7}, 9))
 
 [<TestFixture>]
 type ``Tests for solution`` ()=
@@ -80,5 +72,5 @@ type ``Tests for solution`` ()=
 
     [<Test>]
     member this.``It should solve part 2`` ()=
-        Puzzle.part2 sample_input
-        |> should equal "the right answer"
+        Puzzle.part2 sample_input (0, 20)
+        |> should equal 56000011

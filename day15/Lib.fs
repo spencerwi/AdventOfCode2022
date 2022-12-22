@@ -3,6 +3,7 @@ module Lib
 open System
 open System.Collections.Generic
 open System.Text.RegularExpressions
+open FSharp.Collections.ParallelSeq
 
 module SeqExtras = begin
     /// <description>
@@ -37,8 +38,18 @@ module Space = begin
             abs (other.x - this.x) +
             abs (other.y - this.y)
 
+        member this.up() = { this with y = this.y + 1 }
+        member this.down() = { this with y = this.y - 1 }
+        member this.left() = { this with x = this.x - 1 }
+        member this.right() = { this with x = this.x + 1 }
+            
+        member this.neighbors : Point seq =
+            seq {
+                this.up(); this.down(); this.left(); this.right();
+            }
+
     type SpaceObject =
-        | Sensor of closest_beacon: Point
+        | Sensor of location: Point * range: int
         | Beacon
         | EmptySpace
     with 
@@ -46,20 +57,36 @@ module Space = begin
             | Sensor _-> true
             | _ -> false
 
-        member this.closest_beacon() = 
-            match this with
-            | Sensor b -> Some b
-            | _ -> None
+        static member isBeacon = function
+            | Beacon -> true
+            | _ -> false
         
+        member this.range =
+            match this with
+            | Sensor (_, range) -> range
+            | _ -> 0
+
+        member this.range_boundaries = 
+            match this with 
+            | Sensor (location, range) ->
+                seq {
+                    let mutable y = 0 in
+                    for x = (location.x - range) to (location.x + range) do
+                        yield {x = x; y = location.y + y}
+                        if y <> 0 then
+                            yield {x = x; y = location.y - y}
+                        if x > location.x then
+                            y <- y + 1
+                        else
+                            y <- y - 1
+                } |> Set.ofSeq
+            | _ -> Set.empty
+
         member this.to_string() =
             match this with
             | Sensor _ -> "S"
             | Beacon -> "B"
             | EmptySpace -> "."
-
-    type Cell = {
-        value : SpaceObject
-    }
 
     type t = {
         mutable objects: Map<Point, SpaceObject>
@@ -84,16 +111,34 @@ module Space = begin
             |> Seq.map (fun point -> point.y)
             |> SeqExtras.min_and_max
 
-        member this.sensors =
-            this.objects.Keys
-            |> Seq.map (fun p -> (p, this[p]))
-            |> Seq.filter (fun (_, o) -> SpaceObject.isSensor o)
+        member this.beacon_locations =
+            this.objects
+            |> Map.filter (fun location cell -> SpaceObject.isBeacon cell)
+            |> Map.keys
 
-        member this.points_in_range_of (p: Point) (y: int) : Set<Point> =
+        member this.sensors =
+            this.objects.Values
+            |> Seq.filter (function 
+                | Sensor _ -> true
+                | _ -> false
+            )
+
+        member this.points_in_range_of (p: Point) : Set<Point> =
             match this[p] with
             | Beacon | EmptySpace -> Set.empty
-            | Sensor nearest_beacon ->
-                let range = p.distance_to nearest_beacon in
+            | Sensor (_, range) ->
+                Set.ofSeq <| seq {
+                    for x = (p.x - range) to (p.x + range) do
+                        for y = (p.x - range) to (p.y + range) do
+                            let candidate = {x = x; y = y} in
+                            if p.distance_to candidate <= range then
+                                yield candidate
+                }
+
+        member this.colinear_points_in_range_of (p: Point) (y: int) : Set<Point> =
+            match this[p] with
+            | Beacon | EmptySpace -> Set.empty
+            | Sensor (_, range) ->
                 Set.ofSeq <| seq {
                     for x = (p.x - range) to (p.x + range) do
                         let candidate = {x = x; y = y} in
@@ -114,7 +159,7 @@ module Space = begin
 
         member this.impossible_beacon_locations_on_line (y : int) =
             this.sensors
-            |> Seq.map (fun (s, _) -> this.points_in_range_of s y)
+            |> PSeq.map (fun (Sensor (location, range)) -> this.colinear_points_in_range_of location y)
             |> Set.unionMany
             |> Set.filter (fun point -> 
                 match this.objects.TryFind point with
@@ -138,7 +183,7 @@ module Space = begin
                 x = int match_groups["beacon_x"].Value
                 y = int match_groups["beacon_y"].Value
             } in
-            space[sensor] <- Sensor beacon
+            space[sensor] <- Sensor (sensor, sensor.distance_to beacon)
             space[beacon] <- Beacon
         done;
         space
@@ -147,11 +192,48 @@ module Space = begin
 end
 
 module Puzzle = begin
+    open type Space.Point
+    open type Space.SpaceObject
+
     let part1 (input: string seq) (line_number : int) =
         let space = Space.build input in
         space.impossible_beacon_locations_on_line line_number
         |> Set.count
 
-    let part2 (input: string seq) =
-        "the right answer"
+    let part2 (input: string seq) (bounds : int * int) =
+        let (min, max) = bounds in
+        let is_in_search_area (p: Space.Point) =
+            p.x >= min && p.x <= max && p.y >= min && p.y <= max
+        in
+        let space = Space.build input in
+        // Okay, let's think about this. There's _a_ unique solution here: the single distress beacon.
+        // That means that in our zone, there's only one square that's not detected by any sensor.
+        // Now, why would a square not be detected by a sensor? Because other beacons are "blocking" it.
+        // So that means it has to be "boxed in" by other beacons. 
+        // But since there's only one square that meets that criteria, that means that the "box" that contains it
+        //  is exactly one square...so it has to have the "borders" of our other sensors on all sides of it.
+        // So, let's take all our sensors, look at the absolute edges of their ranges, look at all the "outside" neighbors of those border points, and find one that's not in range of any other sensor either.
+        let distress_beacon_location =
+            space.sensors
+            |> PSeq.collect (fun (Sensor (location, range)) -> 
+                let sensor_with_larger_range = Sensor (location, range + 1) in
+                sensor_with_larger_range.range_boundaries
+            )
+            |> PSeq.filter is_in_search_area
+            |> PSeq.filter (fun candidate -> 
+                match space[candidate] with
+                | EmptySpace -> true
+                | _ -> false
+            )
+            |> PSeq.find (fun candidate ->
+                space.sensors
+                |> PSeq.forall (fun (Sensor (sensor_location, range)) ->
+                    (sensor_location.distance_to candidate) > range
+                )
+            )
+        in
+        let tuning_frequency = 
+            ((uint64 distress_beacon_location.x) * 4_000_000UL) + (uint64 distress_beacon_location.y)
+        in
+        tuning_frequency
 end
