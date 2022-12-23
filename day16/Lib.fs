@@ -7,8 +7,8 @@ module Valves = begin
     type Valve = {
         name : string
         flow_rate : int
-        mutable is_open : bool
-        mutable connections : string list
+        is_open : bool
+        connections : string list
     } with
         static member parse (input : string) =
             let match_groups = 
@@ -34,18 +34,21 @@ module Valves = begin
             }
 
         member this.open_valve () =
-            this.is_open <- true
+            { this with is_open = true }
 
 
     type ValveSystem = {
-        mutable valves : Map<string, Valve>
+        valves : Map<string, Valve>
         mutable travel_times : Map<(string * string), int>
     } with
         member this.Item 
             with get (valve_name : string) = 
                 this.valves[valve_name]
-            and set (valve_name : string) (valve : Valve) =
-                this.valves <- this.valves.Add(valve_name, valve)
+
+        member this.open_valve (valve : Valve) =
+            { this with
+                    valves = this.valves.Add(valve.name, valve.open_valve())
+            }
 
         member this.open_valves =
             this.valves.Values
@@ -122,9 +125,9 @@ module Valves = begin
 
     type State = {
         valve_system : ValveSystem
-        mutable time_left : int
-        mutable current_location: string
-        mutable total_pressure_released : int
+        time_left : int
+        current_location: string
+        total_pressure_released : int
     } with
         static member make (valve_system : ValveSystem) =
             {
@@ -148,22 +151,26 @@ module Valves = begin
                         |> String.concat ", "
                     in
                     printfn "Valves %s are open, releasing %d pressure." open_valve_names this.valve_system.total_flow_rate
-            this.total_pressure_released <- this.total_pressure_released + this.valve_system.total_flow_rate
-            this.time_left <- this.time_left - 1
+            { this with
+                    total_pressure_released = this.total_pressure_released + this.valve_system.total_flow_rate
+                    time_left = this.time_left - 1
+            }
 
         member this.open_valve (valve : Valve) =
-            this.tick();
             printfn "You open valve %s." valve.name
-            valve.is_open <- true
+            { this.tick() with
+                    valve_system = this.valve_system.open_valve valve
+            }
 
         member this.move_to (dest : Valve) =
             let travel_time = this.valve_system.travel_time this.current_location dest.name in
             printfn "Moving to %s" dest.name;
+            let mutable current_state = this in
             for t in 1 .. travel_time do
                 if this.time_left > 0 then
-                    this.tick();
+                    current_state <- current_state.tick();
             done
-            this.current_location <- dest.name
+            { current_state with current_location = dest.name }
 
 end
 
@@ -172,7 +179,7 @@ module Puzzle = begin
 
     let part1 (input: string seq) =
         let valve_system = ValveSystem.parse input in
-        let state = State.make valve_system in
+        let mutable state = State.make valve_system in
         while state.time_left > 0 do
             // Let's try a strategy of "always go to the closest one that has the highest yield"
             // TODO: this strategy is wrong. Need to identify a different strategy for picking my next move.
@@ -180,7 +187,7 @@ module Puzzle = begin
                 valve_system.closed_valves
                 |> Seq.filter (fun valve -> valve.flow_rate > 0) // 0-pressure valves aren't worth opening.
             if Seq.isEmpty closed_valves_worth_opening then
-                state.tick();
+                state <- state.tick()
             else
                 let (travel_time_used, dest) = 
                     valve_system.closed_valves
@@ -199,9 +206,9 @@ module Puzzle = begin
                     )
                     |> Seq.head
                 in
-                state.move_to dest;
+                state <- state.move_to dest
                 if state.time_left > 0 then
-                    state.open_valve dest;
+                    state <- state.open_valve dest
         done;
         state.total_pressure_released
 
