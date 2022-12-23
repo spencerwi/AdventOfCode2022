@@ -3,6 +3,8 @@ module Lib
 open System
 open System.Text.RegularExpressions
 
+let debug = false;
+
 module Valves = begin
     type Valve = {
         name : string
@@ -57,6 +59,10 @@ module Valves = begin
         member this.closed_valves =
             this.valves.Values
             |> Seq.filter (fun valve -> not valve.is_open)
+
+        member this.valuable_closed_valves =
+            this.closed_valves
+            |> Seq.filter (fun valve -> valve.flow_rate > 0)
 
         member this.total_flow_rate =
             this.open_valves
@@ -138,8 +144,8 @@ module Valves = begin
             }
 
         member this.tick() =
-            printfn "== Minute %d ==" (31 - this.time_left);
-            let valve_status = 
+            if debug then begin
+                printfn "== Minute %d ==" (31 - this.time_left);
                 if Seq.isEmpty this.valve_system.open_valves then Console.WriteLine "No valves are open."
                 elif Seq.length this.valve_system.open_valves = 1 then 
                     let open_valve = Seq.exactlyOne this.valve_system.open_valves in
@@ -151,26 +157,56 @@ module Valves = begin
                         |> String.concat ", "
                     in
                     printfn "Valves %s are open, releasing %d pressure." open_valve_names this.valve_system.total_flow_rate
+            end;
             { this with
                     total_pressure_released = this.total_pressure_released + this.valve_system.total_flow_rate
                     time_left = this.time_left - 1
             }
 
         member this.open_valve (valve : Valve) =
-            printfn "You open valve %s." valve.name
+            if debug then printfn "You open valve %s." valve.name
             { this.tick() with
                     valve_system = this.valve_system.open_valve valve
             }
 
         member this.move_to (dest : Valve) =
             let travel_time = this.valve_system.travel_time this.current_location dest.name in
-            printfn "Moving to %s" dest.name;
+            if debug then printfn "Moving to %s" dest.name;
             let mutable current_state = this in
             for t in 1 .. travel_time do
                 if this.time_left > 0 then
                     current_state <- current_state.tick();
             done
             { current_state with current_location = dest.name }
+
+        member this.drain_clock() =
+            let mutable state = this in
+            while state.time_left > 0 do
+                state <- state.tick()
+            done;
+            state
+
+        member this.possible_routes() = 
+            let rec possible_routes_from ((seen_valves : string list, state : State)) (current_valve: string) : (string list * State) seq =
+                if state.time_left <= 0 then [(seen_valves, state)]
+                else
+                    let remaining_closed_valves_worth_opening = 
+                        state.valve_system.valuable_closed_valves 
+                    in
+                    if Seq.isEmpty remaining_closed_valves_worth_opening then
+                        [(seen_valves, state.drain_clock())]
+                    else
+                        remaining_closed_valves_worth_opening
+                        |> Seq.filter (fun closed_valve -> not (List.contains closed_valve.name seen_valves))
+                        |> Seq.map (fun next_valve -> 
+                            let moved_state = state.move_to next_valve in
+                            let updated_state = moved_state.open_valve next_valve in
+                            let updated_route_so_far = List.append seen_valves [next_valve.name] in
+                            possible_routes_from (updated_route_so_far, updated_state) next_valve.name
+                        ) 
+                        |> Seq.concat
+            in
+            possible_routes_from (List.empty, this) this.current_location
 
 end
 
@@ -179,38 +215,11 @@ module Puzzle = begin
 
     let part1 (input: string seq) =
         let valve_system = ValveSystem.parse input in
-        let mutable state = State.make valve_system in
-        while state.time_left > 0 do
-            // Let's try a strategy of "always go to the closest one that has the highest yield"
-            // TODO: this strategy is wrong. Need to identify a different strategy for picking my next move.
-            let closed_valves_worth_opening =
-                valve_system.closed_valves
-                |> Seq.filter (fun valve -> valve.flow_rate > 0) // 0-pressure valves aren't worth opening.
-            if Seq.isEmpty closed_valves_worth_opening then
-                state <- state.tick()
-            else
-                let (travel_time_used, dest) = 
-                    valve_system.closed_valves
-                    |> Seq.filter (fun valve -> valve.flow_rate > 0) 
-                    |> Seq.map (fun valve -> 
-                        let travel_time = 
-                            valve_system.travel_time state.current_location valve.name
-                        in
-                        travel_time, valve
-                    )
-                    |> Seq.sortWith (fun (cost1, valve1) (cost2, valve2) ->
-                        if compare cost1 cost2 <> 0 then
-                            compare cost1 cost2
-                        else
-                            compare valve2.flow_rate valve1.flow_rate
-                    )
-                    |> Seq.head
-                in
-                state <- state.move_to dest
-                if state.time_left > 0 then
-                    state <- state.open_valve dest
-        done;
-        state.total_pressure_released
+        let state = State.make valve_system in
+        let possible_routes = state.possible_routes() in
+        possible_routes
+        |> Seq.map (fun (route, final_state) -> final_state.total_pressure_released)
+        |> Seq.max
 
     let part2 (input: string seq) =
         "the right answer"
