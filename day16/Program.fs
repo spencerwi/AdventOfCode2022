@@ -11,5 +11,5 @@ let main args =
     in
     let input = System.IO.File.ReadAllLines input_filename in
     printfn "Part 1: %d" (Puzzle.part1 input);
-    printfn "Part 2: %s" (Puzzle.part2 input);
+    printfn "Part 2: %d" (Puzzle.part2 input);
     0

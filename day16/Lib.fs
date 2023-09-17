@@ -124,10 +124,10 @@ module Valves = begin
         total_pressure_released : int
         logs : (int * string) list
     } with
-        static member make (valve_system : ValveSystem) =
+        static member make (valve_system : ValveSystem) (time_left : int) =
             {
                 valve_system = valve_system
-                time_left = 30
+                time_left = time_left
                 current_location = "AA"
                 total_pressure_released = 0
                 logs = []
@@ -193,10 +193,11 @@ module Valves = begin
                 else
                     let remaining_closed_valves_worth_opening = 
                         state.valve_system.valuable_closed_valves 
-                        // If we can't reach it in time, then there's no point in going there
+                        // If we can't reach it and open it in time, then there's no point in going there
                         |> Seq.filter (fun valve -> 
                             let time_to_reach = state.valve_system.travel_time state.current_location valve.name in
-                            time_to_reach <= state.time_left
+                            let time_to_reach_and_open = time_to_reach + 1 in
+                            time_to_reach_and_open <= state.time_left
                         )
                         // If we're going to revisit some valve, we're wasting time. Let's try avoiding that
                         |> Seq.filter (fun v -> not (List.contains v.name seen_valves))
@@ -222,12 +223,31 @@ module Puzzle = begin
 
     let part1 (input: string seq) =
         let valve_system = ValveSystem.parse input in
-        let state = State.make valve_system in
+        let state = State.make valve_system 30 in
         let possible_routes = state.possible_routes() in
         possible_routes
         |> PSeq.map (fun (route, final_state) -> final_state.total_pressure_released)
         |> PSeq.max
 
     let part2 (input: string seq) =
-        "the right answer"
+        let valve_system = ValveSystem.parse input in
+        let state = State.make valve_system 26 in
+        let possible_routes = state.possible_routes() in
+        Seq.allPairs possible_routes possible_routes
+        |> PSeq.filter (fun (route1, route2) -> 
+            let (route1_path, route1_outcome) = route1 in
+            let (route2_path, route2_outcome) = route2 in
+            let has_overlap = 
+                route1_path
+                |> Seq.tryFind (fun valve -> List.contains valve route2_path)
+                |> Option.isSome
+            in
+            not has_overlap
+        )
+        |> PSeq.map (fun (route1, route2) -> 
+            let (_, route1_outcome) = route1 in
+            let (_, route2_outcome) = route2 in
+            route1_outcome.total_pressure_released + route2_outcome.total_pressure_released
+        )
+        |> PSeq.max
 end

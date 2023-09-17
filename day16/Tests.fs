@@ -75,4 +75,4 @@ type ``Tests for solution`` ()=
     [<Test>]
     member this.``It should solve part 2`` ()=
         Puzzle.part2 sample_input
-        |> should equal "the right answer"
+        |> should equal 1707
